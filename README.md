@@ -1,51 +1,84 @@
+<div align="center">
+
 # posthog-telegram
 
-Streams PostHog events to Telegram in real-time. Polls every 30s, deduplicates, and sends one message per event.
+**Streams PostHog events to Telegram in real-time.**
 
-## Setup
+[![License](https://img.shields.io/badge/license-MIT-blue?style=flat-square)](./LICENSE)
+[![Python](https://img.shields.io/badge/Python-3.10+-3776ab?style=flat-square&logo=python)](https://www.python.org)
+[![PostHog](https://img.shields.io/badge/PostHog-Events-f54e00?style=flat-square)](https://posthog.com)
 
-### 1. Create Telegram bot
-1. Message [@BotFather](https://t.me/botfather) → `/newbot`
-2. Copy the token → `TELEGRAM_BOT_TOKEN`
-3. Message your bot, then visit `https://api.telegram.org/bot<TOKEN>/getUpdates` to get your `chat_id`
+</div>
 
-### 2. Get PostHog API key
-PostHog → Settings → Personal API Keys → Create key with **Read** access
+---
 
-### 3. Get your Project ID
-PostHog → Settings → Project → copy the numeric ID from the URL or settings page
+Polls the PostHog Events API every 30 seconds, deduplicates results, and fires one Telegram message per event. Designed to run as a systemd service on a VPS.
 
-### 4. Deploy to OCI
+## Features
+
+- **Real-time alerts** — New events land in Telegram within 30 seconds
+- **Deduplication** — Seen event IDs are cached so nothing fires twice
+- **Rich formatting** — Emojis, timestamps, user IDs, and key properties per event
+- **vehiclefinder-aware** — Ships with `query`, `make`, `model`, and `year` prop support out of the box
+- **Configurable** — Poll interval, ignored events, and emoji map all controlled via `.env` or `bot.py`
+
+## Stack
+
+| Layer | Tech |
+|---|---|
+| Language | Python 3.10+ |
+| APIs | PostHog Events API, Telegram Bot API |
+| Process management | systemd |
+| Config | `.env` via `python-dotenv` |
+
+## Getting Started
 
 ```bash
-# Copy files
-scp -r . ubuntu@server.jedbillyb.com:/opt/posthog-telegram
+git clone https://github.com/jedbillyb/posthog-telegram.git
+cd posthog-telegram
+python3 -m venv venv
+venv/bin/pip install -r requirements.txt
+cp .env.example .env
+```
 
-# SSH in
+Fill in `.env`:
+
+```env
+TELEGRAM_BOT_TOKEN=...
+TELEGRAM_CHAT_ID=...
+POSTHOG_API_KEY=...
+POSTHOG_PROJECT_ID=...
+POLL_INTERVAL=30
+```
+
+**Getting your Telegram chat ID:** message your bot, then visit `https://api.telegram.org/bot<TOKEN>/getUpdates`.
+
+Run locally:
+
+```bash
+venv/bin/python bot.py
+```
+
+## Deployment
+
+Copy to your VPS and install the systemd service:
+
+```bash
+scp -r . ubuntu@server.jedbillyb.com:/opt/posthog-telegram
 ssh ubuntu@server.jedbillyb.com
 
-# Set up venv
 cd /opt/posthog-telegram
 python3 -m venv venv
 venv/bin/pip install -r requirements.txt
+nano .env  # fill in your keys
 
-# Configure
-cp .env.example .env
-nano .env   # fill in your keys
-
-# Install & start systemd service
 sudo cp posthog-telegram.service /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable --now posthog-telegram
-
-# Check it's running
-sudo systemctl status posthog-telegram
 sudo journalctl -u posthog-telegram -f
 ```
 
-## Message format
-
-Each event looks like:
+## Message Format
 
 ```
 📄 $pageview  14:32:01 UTC
@@ -56,9 +89,8 @@ Each event looks like:
   Referring Domain: google.com
 ```
 
-## Customise
+---
 
-- **Add event emojis**: edit `EVENT_EMOJI` dict in `bot.py`
-- **Add vehiclefinder props**: already included (`query`, `make`, `model`, `year`)
-- **Change poll rate**: set `POLL_INTERVAL` in `.env`
-- **Filter events**: add an `if name not in IGNORE_EVENTS: continue` block in `main()`
+<div align="center">
+<sub>MIT © <a href="https://github.com/jedbillyb">jedbillyb</a> · Made with ❤️</sub>
+</div>
