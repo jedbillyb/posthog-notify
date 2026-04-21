@@ -2,32 +2,34 @@
 
 # posthog-telegram
 
-**Streams PostHog events to Telegram in real-time.**
+**Forwards PostHog webhook events to Telegram in real-time.**
 
 [![License](https://img.shields.io/badge/license-MIT-blue?style=flat-square)](./LICENSE)
 [![Python](https://img.shields.io/badge/Python-3.10+-3776ab?style=flat-square&logo=python)](https://www.python.org)
-[![PostHog](https://img.shields.io/badge/PostHog-Events-f54e00?style=flat-square)](https://posthog.com)
+[![PostHog](https://img.shields.io/badge/PostHog-Webhooks-f54e00?style=flat-square)](https://posthog.com)
 
 </div>
 
 ---
 
-Polls the PostHog Events API every 30 seconds, deduplicates results, and fires one Telegram message per event. Designed to run as a systemd service on a VPS.
+A lightweight FastAPI webhook receiver. PostHog pushes events to `/posthog`, the service filters noise, extracts key properties, and fires a formatted message to Telegram. Designed to run as a systemd service on a VPS.
 
 ## Features
 
-- **Real-time alerts** — New events land in Telegram within 30 seconds
-- **Deduplication** — Seen event IDs are cached so nothing fires twice
-- **Rich formatting** — Emojis, timestamps, user IDs, and key properties per event
-- **vehiclefinder-aware** — Ships with `query`, `make`, `model`, and `year` prop support out of the box
-- **Configurable** — Poll interval, ignored events, and emoji map all controlled via `.env` or `bot.py`
+- **Webhook-driven** — Zero polling; PostHog pushes events instantly
+- **Noise filtering** — Configurable `SKIP_EVENTS` set drops web vitals, autocapture, and other noise
+- **Rich formatting** — Site label, event name, timestamp, location, URL, and device info per message
+- **vehiclefinder-aware** — Extracts `make`, `model`, and `year` for vehicle search events
+- **Fuzzy property matching** — Handles inconsistent PostHog key casing and formatting automatically
 
 ## Stack
 
 | Layer | Tech |
 |---|---|
 | Language | Python 3.10+ |
-| APIs | PostHog Events API, Telegram Bot API |
+| Web framework | FastAPI |
+| HTTP client | requests |
+| APIs | PostHog Webhooks, Telegram Bot API |
 | Process management | systemd |
 | Config | `.env` via `python-dotenv` |
 
@@ -46,9 +48,6 @@ Fill in `.env`:
 ```env
 TELEGRAM_BOT_TOKEN=...
 TELEGRAM_CHAT_ID=...
-POSTHOG_API_KEY=...
-POSTHOG_PROJECT_ID=...
-POLL_INTERVAL=30
 ```
 
 **Getting your Telegram chat ID:** message your bot, then visit `https://api.telegram.org/bot<TOKEN>/getUpdates`.
@@ -56,7 +55,15 @@ POLL_INTERVAL=30
 Run locally:
 
 ```bash
-venv/bin/python bot.py
+venv/bin/uvicorn main:app --host 0.0.0.0 --port 8000
+```
+
+### PostHog setup
+
+In PostHog → **Project Settings** → **Webhooks**, add your endpoint:
+
+```
+https://your-domain.com/posthog
 ```
 
 ## Deployment
@@ -78,15 +85,25 @@ sudo systemctl enable --now posthog-telegram
 sudo journalctl -u posthog-telegram -f
 ```
 
+The service must be reachable from the internet — proxy it through nginx or Caddy on your VPS.
+
 ## Message Format
 
 ```
-📄 $pageview  14:32:01 UTC
-  👤 abc12345…
-  Current Url: https://vehiclefinder.co.nz/
-  Browser: Chrome
-  Os: Mac OS X
-  Referring Domain: google.com
+VF · Pageview  14:32:01 UTC
+abc12345…  ·  Auckland, New Zealand
+/stats/toyota?make=toyota
+Chrome  ·  Mac OS X
+```
+
+For vehicle search events, a vehicle line is prepended:
+
+```
+VF · Pageview  14:32:01 UTC
+2018 Toyota Corolla
+abc12345…  ·  Wellington, New Zealand
+/search
+Chrome  ·  Windows
 ```
 
 ---
